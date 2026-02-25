@@ -3,7 +3,7 @@ import '../data/database_service.dart';
 class SettlementSuggestion {
   final String person;
   final double amount;
-  final bool isLentSettlement; // true = settling lent, false = settling borrowed
+  final bool isLentSettlement;
 
   SettlementSuggestion({
     required this.person,
@@ -16,17 +16,16 @@ class SettlementEngine {
   static Future<SettlementSuggestion?> checkSettlement({
     required String person,
     required double amount,
-    required bool isIncoming, // true = received money, false = paid
+    required bool isIncoming,
   }) async {
     final db = DatabaseService.instance;
 
     if (isIncoming) {
-      // Received money → check Lent
       final openLent = await db.getOpenLentByPerson(person);
-      double totalRemaining = 0;
 
+      double totalRemaining = 0;
       for (var entry in openLent) {
-        totalRemaining += entry.remaining;
+        totalRemaining += (entry['remaining'] as num).toDouble();
       }
 
       if (totalRemaining > 0) {
@@ -37,12 +36,11 @@ class SettlementEngine {
         );
       }
     } else {
-      // Paid money → check Borrowed
       final openBorrowed = await db.getOpenBorrowedByPerson(person);
-      double totalRemaining = 0;
 
+      double totalRemaining = 0;
       for (var entry in openBorrowed) {
-        totalRemaining += entry.remaining;
+        totalRemaining += (entry['remaining'] as num).toDouble();
       }
 
       if (totalRemaining > 0) {
