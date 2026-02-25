@@ -5,6 +5,8 @@ workflows:
 
     environment:
       flutter: stable
+      xcode: latest
+      cocoapods: default
 
     scripts:
       - flutter pub get
