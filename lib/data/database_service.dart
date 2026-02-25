@@ -1,24 +1,7 @@
 import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-
-class BorrowLendEntry {
-  final int id;
-  final String person;
-  final double amount;
-  final double remaining;
-  final String date;
-  final int isSettled;
-
-  BorrowLendEntry({
-    required this.id,
-    required this.person,
-    required this.amount,
-    required this.remaining,
-    required this.date,
-    required this.isSettled,
-  });
-}
+import 'models/expense_model.dart';
 
 class DatabaseService {
   static final DatabaseService instance = DatabaseService._init();
@@ -43,28 +26,14 @@ class DatabaseService {
     );
   }
 
-  Future<void> _createDB(Database db, int version) async {
+  Future _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        amount REAL,
-        category TEXT,
         merchant TEXT,
-        date TEXT,
-        note TEXT
-      )
-    ''');
-
-    await db.execute('''
-      CREATE TABLE borrowed (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        person TEXT,
+        category TEXT,
         amount REAL,
-        remaining REAL,
-        date TEXT,
-        note TEXT,
-        dueDate TEXT,
-        isSettled INTEGER
+        date TEXT
       )
     ''');
 
@@ -75,163 +44,131 @@ class DatabaseService {
         amount REAL,
         remaining REAL,
         date TEXT,
-        note TEXT,
-        dueDate TEXT,
+        isSettled INTEGER
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE borrowed (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        person TEXT,
+        amount REAL,
+        remaining REAL,
+        date TEXT,
         isSettled INTEGER
       )
     ''');
   }
 
-  // ===================== INSERT METHODS =====================
+  // ================= EXPENSES =================
 
-  Future<void> insertBorrowed({
-    required String person,
-    required double amount,
-    required String date,
-    String note = "",
-    String dueDate = "",
-  }) async {
-    final db = await database;
-    await db.insert('borrowed', {
-      'person': person,
-      'amount': amount,
-      'remaining': amount,
-      'date': date,
-      'note': note,
-      'dueDate': dueDate,
-      'isSettled': 0,
-    });
+  Future<int> insertExpense(Expense expense) async {
+    final db = await instance.database;
+    return await db.insert('expenses', expense.toMap());
   }
 
-  Future<void> insertLent({
-    required String person,
-    required double amount,
-    required String date,
-    String note = "",
-    String dueDate = "",
-  }) async {
-    final db = await database;
-    await db.insert('lent', {
-      'person': person,
-      'amount': amount,
-      'remaining': amount,
-      'date': date,
-      'note': note,
-      'dueDate': dueDate,
-      'isSettled': 0,
-    });
-  }
-
-  // ===================== FETCH OPEN ENTRIES =====================
-
-  Future<List<BorrowLendEntry>> getOpenBorrowedByPerson(String person) async {
-    final db = await database;
+  Future<List<Expense>> getExpensesByDateRange(
+      DateTime start, DateTime end) async {
+    final db = await instance.database;
 
     final result = await db.query(
-      'borrowed',
-      where: 'person = ? AND isSettled = 0',
-      whereArgs: [person],
-      orderBy: 'date ASC', // FIFO
+      'expenses',
+      where: 'date BETWEEN ? AND ?',
+      whereArgs: [start.toIso8601String(), end.toIso8601String()],
+      orderBy: 'date DESC',
     );
 
-    return result.map((e) => BorrowLendEntry(
-      id: e['id'] as int,
-      person: e['person'] as String,
-      amount: e['amount'] as double,
-      remaining: e['remaining'] as double,
-      date: e['date'] as String,
-      isSettled: e['isSettled'] as int,
-    )).toList();
+    return result.map((json) => Expense.fromMap(json)).toList();
   }
 
-  Future<List<BorrowLendEntry>> getOpenLentByPerson(String person) async {
-    final db = await database;
+  // ================= LENT =================
 
-    final result = await db.query(
+  Future<List<Map<String, dynamic>>> getOpenLentByPerson(
+      String person) async {
+    final db = await instance.database;
+
+    return await db.query(
       'lent',
       where: 'person = ? AND isSettled = 0',
       whereArgs: [person],
-      orderBy: 'date ASC', // FIFO
+      orderBy: 'date ASC',
     );
-
-    return result.map((e) => BorrowLendEntry(
-      id: e['id'] as int,
-      person: e['person'] as String,
-      amount: e['amount'] as double,
-      remaining: e['remaining'] as double,
-      date: e['date'] as String,
-      isSettled: e['isSettled'] as int,
-    )).toList();
   }
 
-  // ===================== FIFO SETTLEMENT =====================
+  Future<void> applyLentSettlementFIFO(
+      String person, double amount) async {
+    final db = await instance.database;
 
-  Future<void> applyLentSettlementFIFO(String person, double amount) async {
-    final db = await database;
-    final openEntries = await getOpenLentByPerson(person);
+    final entries = await getOpenLentByPerson(person);
 
     double remainingAmount = amount;
 
-    for (var entry in openEntries) {
+    for (var entry in entries) {
       if (remainingAmount <= 0) break;
 
-      double newRemaining = entry.remaining - remainingAmount;
+      double entryRemaining = entry['remaining'];
 
-      if (newRemaining <= 0) {
+      if (remainingAmount >= entryRemaining) {
         await db.update(
           'lent',
-          {
-            'remaining': 0,
-            'isSettled': 1,
-          },
+          {'remaining': 0, 'isSettled': 1},
           where: 'id = ?',
-          whereArgs: [entry.id],
+          whereArgs: [entry['id']],
         );
-        remainingAmount = -newRemaining;
+        remainingAmount -= entryRemaining;
       } else {
         await db.update(
           'lent',
-          {
-            'remaining': newRemaining,
-          },
+          {'remaining': entryRemaining - remainingAmount},
           where: 'id = ?',
-          whereArgs: [entry.id],
+          whereArgs: [entry['id']],
         );
         remainingAmount = 0;
       }
     }
   }
 
-  Future<void> applyBorrowedSettlementFIFO(String person, double amount) async {
-    final db = await database;
-    final openEntries = await getOpenBorrowedByPerson(person);
+  // ================= BORROWED =================
+
+  Future<List<Map<String, dynamic>>> getOpenBorrowedByPerson(
+      String person) async {
+    final db = await instance.database;
+
+    return await db.query(
+      'borrowed',
+      where: 'person = ? AND isSettled = 0',
+      whereArgs: [person],
+      orderBy: 'date ASC',
+    );
+  }
+
+  Future<void> applyBorrowedSettlementFIFO(
+      String person, double amount) async {
+    final db = await instance.database;
+
+    final entries = await getOpenBorrowedByPerson(person);
 
     double remainingAmount = amount;
 
-    for (var entry in openEntries) {
+    for (var entry in entries) {
       if (remainingAmount <= 0) break;
 
-      double newRemaining = entry.remaining - remainingAmount;
+      double entryRemaining = entry['remaining'];
 
-      if (newRemaining <= 0) {
+      if (remainingAmount >= entryRemaining) {
         await db.update(
           'borrowed',
-          {
-            'remaining': 0,
-            'isSettled': 1,
-          },
+          {'remaining': 0, 'isSettled': 1},
           where: 'id = ?',
-          whereArgs: [entry.id],
+          whereArgs: [entry['id']],
         );
-        remainingAmount = -newRemaining;
+        remainingAmount -= entryRemaining;
       } else {
         await db.update(
           'borrowed',
-          {
-            'remaining': newRemaining,
-          },
+          {'remaining': entryRemaining - remainingAmount},
           where: 'id = ?',
-          whereArgs: [entry.id],
+          whereArgs: [entry['id']],
         );
         remainingAmount = 0;
       }
