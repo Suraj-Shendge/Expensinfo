@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../core/colors.dart';
+import 'package:sqflite/sqflite.dart';
 
 class ExpenseCard extends StatefulWidget {
   final double totalExpense;
