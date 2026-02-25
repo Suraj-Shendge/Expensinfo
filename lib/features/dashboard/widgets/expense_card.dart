@@ -64,16 +64,14 @@ class _ExpenseCardState extends State<ExpenseCard> {
   tween: Tween<double>(begin: 0, end: widget.totalExpense),
   duration: const Duration(milliseconds: 400),
   builder: (context, value, child) {
-    return Center(
-      child: Text(
-        hideAmount
-            ? "INR •••••"
-            : "INR ${value.toStringAsFixed(2)}",
-        style: const TextStyle(
-          color: Colors.black,
-          fontSize: 30,
-          fontWeight: FontWeight.bold,
-        ),
+    return Text(
+      hideAmount
+          ? "INR •••••"
+          : "INR ${value.toStringAsFixed(2)}",
+      style: const TextStyle(
+        color: Colors.black,
+        fontSize: 30,
+        fontWeight: FontWeight.bold,
       ),
     );
   },
