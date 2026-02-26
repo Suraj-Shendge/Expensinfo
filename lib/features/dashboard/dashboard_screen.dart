@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 import '../../core/colors.dart';
 import '../../data/database_service.dart';
 import '../../data/models/expense_model.dart';
@@ -7,7 +9,6 @@ import 'widgets/finance_card_stack.dart';
 import 'widgets/category_row.dart';
 import 'widgets/add_expense_sheet.dart';
 
-import '../../core/sms_service.dart';
 import '../../core/sms_parser.dart';
 import '../../core/settlement_engine.dart';
 
@@ -29,34 +30,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
   double totalExpense = 0;
   List<Expense> expenses = [];
 
+  // ================= INIT =================
+
   @override
   void initState() {
     super.initState();
+    requestPermissions();
     loadExpenses();
-    checkSmsForTransactions();
   }
 
-  // ================= SMS CHECK =================
+  // ================= STEP 4: PERMISSIONS =================
 
-  Future<void> checkSmsForTransactions() async {
-    final smsService = SmsService();
-    final messages = await smsService.getRecentMessages();
+  Future<void> requestPermissions() async {
+    await Permission.sms.request();
+    await Permission.notification.request();
+  }
 
-    for (var msg in messages) {
-      final parsed = SmsParser.parse(msg.body ?? "");
-      if (parsed == null) continue;
+  // ================= SMS → SETTLEMENT HANDLER =================
+  // (Called when app opened via notification tap)
 
-      final suggestion = await SettlementEngine.checkSettlement(
-        person: parsed.person,
-        amount: parsed.amount,
-        isIncoming: parsed.isIncoming,
-      );
+  void handleIncomingSms(String smsBody) async {
+    final parsed = SmsParser.parse(smsBody);
+    if (parsed == null) return;
 
-      if (suggestion != null && mounted) {
-        showSettlementBottomSheet(suggestion);
-        break;
-      }
+    final suggestion = await SettlementEngine.checkSettlement(
+      person: parsed.person,
+      amount: parsed.amount,
+      isIncoming: parsed.isIncoming,
+    );
+
+    if (suggestion != null && mounted) {
+      showSettlementBottomSheet(suggestion);
+    } else if (mounted) {
+      showAddExpenseFromSms(parsed);
     }
+  }
+
+  void showAddExpenseFromSms(dynamic parsed) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AddExpenseSheet(
+        prefillAmount: parsed.amount,
+        prefillMerchant: parsed.person,
+      ),
+    );
   }
 
   void showSettlementBottomSheet(SettlementSuggestion suggestion) {
@@ -102,7 +121,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         .applyBorrowedSettlementFIFO(
                             suggestion.person, suggestion.amount);
                   }
-                  Navigator.pop(context);
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    loadExpenses();
+                  }
                 },
                 child: const Text("Confirm Settlement"),
               ),
@@ -144,13 +167,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       sum += e.amount;
     }
 
-    setState(() {
-      expenses = data;
-      totalExpense = sum;
-    });
+    if (mounted) {
+      setState(() {
+        expenses = data;
+        totalExpense = sum;
+      });
+    }
   }
 
-  // ================= UI BELOW (unchanged) =================
+  // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
@@ -197,15 +222,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget buildRangeSelector() {
-    return Container(); // keep your existing implementation
-  }
-
-  Widget buildTransactionHeader() {
-    return Container(); // keep your existing implementation
-  }
-
-  Widget buildExpenseList() {
-    return Container(); // keep your existing implementation
-  }
+  Widget buildRangeSelector() => Container();
+  Widget buildTransactionHeader() => Container();
+  Widget buildExpenseList() => Container();
 }
