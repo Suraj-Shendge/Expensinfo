@@ -4,9 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.app.NotificationManager
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.plugin.common.MethodChannel
 
 class ActionReceiver : BroadcastReceiver() {
 
@@ -16,20 +13,16 @@ class ActionReceiver : BroadcastReceiver() {
         val merchant = intent.getStringExtra("merchant") ?: ""
         val category = intent.getStringExtra("category") ?: ""
 
-        val flutterEngine = FlutterEngine(context)
-        flutterEngine.dartExecutor.executeDartEntrypoint(
-            DartExecutor.DartEntrypoint.createDefault()
-        )
+        // Save lightweight data safely
+        val prefs = context.getSharedPreferences("pending_expense", Context.MODE_PRIVATE)
 
-        MethodChannel(
-            flutterEngine.dartExecutor.binaryMessenger,
-            "background_channel"
-        ).invokeMethod("insertExpense", mapOf(
-            "amount" to amount,
-            "merchant" to merchant,
-            "category" to category
-        ))
+        prefs.edit()
+            .putFloat("amount", amount.toFloat())
+            .putString("merchant", merchant)
+            .putString("category", category)
+            .apply()
 
+        // Close notification
         val manager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.cancelAll()
