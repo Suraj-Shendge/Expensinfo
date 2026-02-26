@@ -3,6 +3,7 @@ package com.example.expensinfo_full
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.app.NotificationManager
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
@@ -28,5 +29,9 @@ class ActionReceiver : BroadcastReceiver() {
             "merchant" to merchant,
             "category" to category
         ))
+
+        val manager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.cancelAll()
     }
 }
