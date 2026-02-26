@@ -1,4 +1,4 @@
-package com.expensinfo.mobile
+package com.example.expensinfo_full
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
