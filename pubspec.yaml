@@ -13,7 +13,7 @@ dependencies:
   sqflite: ^2.3.3
   path_provider: ^2.1.3
   intl: ^0.19.0
-  flutter_sms_inbox: ^1.0.2
+  telephony: ^0.2.0
   permission_handler: ^11.3.0
 
 flutter:
@@ -21,6 +21,3 @@ flutter:
 
   assets:
     - assets/icons/
-
-telephony: ^0.2.0
-permission_handler: ^11.3.0
