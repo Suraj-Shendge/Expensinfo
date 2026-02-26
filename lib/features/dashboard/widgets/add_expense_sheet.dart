@@ -4,15 +4,22 @@ import '../../../data/database_service.dart';
 import '../../../data/models/expense_model.dart';
 
 class AddExpenseSheet extends StatefulWidget {
-  const AddExpenseSheet({super.key});
+  final double? prefillAmount;
+  final String? prefillMerchant;
+
+  const AddExpenseSheet({
+    super.key,
+    this.prefillAmount,
+    this.prefillMerchant,
+  });
 
   @override
   State<AddExpenseSheet> createState() => _AddExpenseSheetState();
 }
 
 class _AddExpenseSheetState extends State<AddExpenseSheet> {
-  final TextEditingController amountController = TextEditingController();
-  final TextEditingController merchantController = TextEditingController();
+  late TextEditingController amountController;
+  late TextEditingController merchantController;
 
   String selectedCategory = "Fuel";
 
@@ -23,6 +30,36 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
     {"name": "Bills", "icon": "assets/icons/bills.png"},
     {"name": "Other", "icon": "assets/icons/other.png"},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    amountController = TextEditingController(
+      text: widget.prefillAmount?.toString() ?? "",
+    );
+
+    merchantController = TextEditingController(
+      text: widget.prefillMerchant ?? "",
+    );
+
+    // 🔥 Smart auto category guess
+    if (widget.prefillMerchant != null) {
+      final merchant = widget.prefillMerchant!.toLowerCase();
+
+      if (merchant.contains("fuel") ||
+          merchant.contains("petrol")) {
+        selectedCategory = "Fuel";
+      } else if (merchant.contains("swiggy") ||
+          merchant.contains("zomato") ||
+          merchant.contains("restaurant")) {
+        selectedCategory = "Food";
+      } else if (merchant.contains("amazon") ||
+          merchant.contains("flipkart")) {
+        selectedCategory = "Shopping";
+      }
+    }
+  }
 
   Future<void> saveExpense() async {
     final double? amount = double.tryParse(amountController.text);
@@ -134,7 +171,6 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
 
             const SizedBox(height: 16),
 
-            // Category Selector
             Wrap(
               spacing: 16,
               runSpacing: 16,
@@ -171,9 +207,7 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(14),
-                          child: Image.asset(
-                            cat["icon"]!,
-                          ),
+                          child: Image.asset(cat["icon"]!),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -192,7 +226,6 @@ class _AddExpenseSheetState extends State<AddExpenseSheet> {
 
             const SizedBox(height: 32),
 
-            // Save Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
